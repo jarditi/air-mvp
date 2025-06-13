@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: Optional[str] = Field(None, env="GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: Optional[str] = Field(None, env="GOOGLE_CLIENT_SECRET")
     
+    # Google Cloud Configuration (OAuth)
+    GOOGLE_CLOUD_PROJECT_ID: Optional[str] = Field(None, env="GOOGLE_CLOUD_PROJECT_ID")
+    GOOGLE_OAUTH_CLIENT_ID: Optional[str] = Field(None, env="GOOGLE_OAUTH_CLIENT_ID")
+    GOOGLE_OAUTH_CLIENT_SECRET: Optional[str] = Field(None, env="GOOGLE_OAUTH_CLIENT_SECRET")
+    GOOGLE_OAUTH_REDIRECT_URI: Optional[str] = Field(None, env="GOOGLE_OAUTH_REDIRECT_URI")
+    
     # LinkedIn
     LINKEDIN_CLIENT_ID: Optional[str] = Field(None, env="LINKEDIN_CLIENT_ID")
     LINKEDIN_CLIENT_SECRET: Optional[str] = Field(None, env="LINKEDIN_CLIENT_SECRET")

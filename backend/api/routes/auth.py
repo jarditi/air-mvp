@@ -1,6 +1,6 @@
 """Authentication endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserDetailResponseSchema)
 async def get_current_user_profile(
-    current_user: User = Depends(get_current_active_user),
+    current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Get current user profile information."""
@@ -27,14 +27,15 @@ async def get_current_user_profile(
     user_data = {
         "id": current_user.id,
         "email": current_user.email,
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
-        "phone": current_user.phone,
+        "full_name": current_user.full_name or "",
         "timezone": current_user.timezone,
         "subscription_tier": current_user.subscription_tier,
+        "subscription_status": current_user.subscription_status,
         "is_verified": current_user.is_verified,
         "is_active": current_user.is_active,
         "auth_provider": current_user.auth_provider,
+        "avatar_url": current_user.avatar_url,
+        "onboarding_completed": current_user.onboarding_completed,
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
         "last_login_at": current_user.last_login_at,
@@ -48,7 +49,7 @@ async def get_current_user_profile(
 @router.put("/me", response_model=UserResponseSchema)
 async def update_current_user_profile(
     user_update: UserUpdateSchema,
-    current_user: User = Depends(get_current_active_user),
+    current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Update current user profile information."""
@@ -65,7 +66,7 @@ async def update_current_user_profile(
 
 @router.post("/token/refresh")
 async def refresh_token(
-    current_user: User = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Refresh internal API token."""
@@ -83,7 +84,7 @@ async def refresh_token(
 
 @router.get("/stats")
 async def get_user_stats(
-    current_user: User = Depends(get_current_active_user),
+    current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Get user statistics and metadata."""
@@ -95,7 +96,7 @@ async def get_user_stats(
 
 @router.post("/deactivate")
 async def deactivate_account(
-    current_user: User = Depends(get_current_active_user),
+    current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Deactivate current user account."""
@@ -124,4 +125,39 @@ async def auth_health_check():
         "jwt_verification_configured": auth_service.settings.CLERK_JWT_VERIFICATION_KEY is not None
     }
     
-    return health_status 
+    return health_status
+
+
+@router.get("/test-auth")
+async def test_auth(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """Test authentication endpoint for debugging."""
+    if not authorization:
+        return {"error": "No authorization header"}
+    
+    if not authorization.startswith("Bearer "):
+        return {"error": "Invalid authorization format"}
+    
+    token = authorization.split(" ")[1]
+    
+    try:
+        auth_service = get_auth_service()
+        
+        # Create credentials manually
+        from fastapi.security import HTTPAuthorizationCredentials
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+        
+        # Test authentication
+        user = auth_service.authenticate_request(credentials, db)
+        
+        return {
+            "success": True,
+            "user_id": str(user.id),
+            "email": user.email,
+            "auth_provider": user.auth_provider
+        }
+        
+    except Exception as e:
+        return {"error": str(e)} 

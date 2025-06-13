@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 import jwt
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from clerk_backend_api import Clerk
@@ -141,18 +141,43 @@ class AuthService:
     def authenticate_request(self, credentials: HTTPAuthorizationCredentials, db: Session) -> User:
         """Authenticate a request using JWT token."""
         try:
-            # Verify the JWT token
-            payload = self.verify_jwt_token(credentials.credentials)
-            
-            # Extract user ID from token
-            clerk_user_id = payload.get("sub")
-            if not clerk_user_id:
-                raise AuthenticationError("No user ID in token")
-            
-            # Get or create user in our database
-            user = self.get_or_create_user(clerk_user_id, db)
-            
-            return user
+            # Try to verify as internal token first
+            try:
+                payload = self.verify_internal_token(credentials.credentials)
+                
+                # Extract user ID from internal token
+                user_id = payload.get("sub")
+                if not user_id:
+                    raise AuthenticationError("No user ID in token")
+                
+                # Get user from database
+                user = self.get_user_by_id(user_id, db)
+                if not user:
+                    raise AuthenticationError("User not found")
+                
+                # Update last login
+                user.last_login_at = datetime.utcnow()
+                db.commit()
+                
+                return user
+                
+            except AuthenticationError:
+                # If internal token verification fails, try Clerk token
+                if self.settings.CLERK_JWT_VERIFICATION_KEY:
+                    payload = self.verify_jwt_token(credentials.credentials)
+                    
+                    # Extract user ID from Clerk token
+                    clerk_user_id = payload.get("sub")
+                    if not clerk_user_id:
+                        raise AuthenticationError("No user ID in token")
+                    
+                    # Get or create user in our database
+                    user = self.get_or_create_user(clerk_user_id, db)
+                    
+                    return user
+                else:
+                    # No Clerk configuration, re-raise the internal token error
+                    raise
             
         except AuthenticationError:
             raise
@@ -239,8 +264,8 @@ class AuthService:
         try:
             # Update allowed fields
             allowed_fields = [
-                'first_name', 'last_name', 'phone', 'timezone', 
-                'notification_preferences', 'subscription_tier'
+                'full_name', 'timezone', 'avatar_url', 'subscription_tier', 
+                'privacy_settings'
             ]
             
             for field, value in profile_data.items():
@@ -319,9 +344,9 @@ def get_auth_service() -> AuthService:
 
 # Dependency functions for FastAPI
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = security,
-    db: Session = get_db()
-) -> User:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> Any:
     """FastAPI dependency to get the current authenticated user."""
     try:
         auth_service = get_auth_service()
@@ -350,7 +375,7 @@ def get_current_user(
         )
 
 
-def get_current_active_user(current_user: User = get_current_user) -> User:
+def get_current_active_user(current_user: Any = Depends(get_current_user)) -> Any:
     """FastAPI dependency to get the current active user."""
     if not current_user.is_active:
         raise HTTPException(
@@ -362,7 +387,7 @@ def get_current_active_user(current_user: User = get_current_user) -> User:
 
 def require_permissions(permissions: list = None):
     """FastAPI dependency factory for permission-based access control."""
-    def permission_checker(current_user: User = get_current_active_user) -> User:
+    def permission_checker(current_user: Any = Depends(get_current_active_user)) -> Any:
         auth_service = get_auth_service()
         
         if not auth_service.check_user_permissions(current_user, permissions):
@@ -373,4 +398,68 @@ def require_permissions(permissions: list = None):
         
         return current_user
     
-    return permission_checker 
+    return permission_checker
+
+
+# Custom dependency that works correctly
+def get_current_user_custom(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+) -> Any:
+    """Custom FastAPI dependency to get the current authenticated user."""
+    try:
+        if not authorization:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization header required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authorization header format",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        token = authorization.split(" ")[1]
+        
+        # Create credentials manually
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+        
+        auth_service = get_auth_service()
+        user = auth_service.authenticate_request(credentials, db)
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return user
+        
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Authentication dependency error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service error"
+        )
+
+
+def get_current_active_user_custom(current_user: Any = Depends(get_current_user_custom)) -> Any:
+    """Custom FastAPI dependency to get the current active user."""
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
+        )
+    return current_user 

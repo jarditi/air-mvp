@@ -2,11 +2,11 @@
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from lib.database import init_db
 from lib.logger import setup_logging
+from lib.middleware import setup_middleware
 from api.routes import health, auth, contacts, integrations, ai_assistant
 
 
@@ -28,14 +28,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_HOSTS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Setup middleware (authentication, CORS, logging, rate limiting)
+setup_middleware(app)
 
 # Include routers
 app.include_router(health.router, prefix="/health", tags=["health"])

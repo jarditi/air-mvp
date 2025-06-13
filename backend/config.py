@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     AUTH0_CLIENT_ID: Optional[str] = Field(None, env="AUTH0_CLIENT_ID")
     AUTH0_CLIENT_SECRET: Optional[str] = Field(None, env="AUTH0_CLIENT_SECRET")
     
+    # Clerk.dev
+    CLERK_PUBLISHABLE_KEY: Optional[str] = Field(None, env="CLERK_PUBLISHABLE_KEY")
+    CLERK_SECRET_KEY: Optional[str] = Field(None, env="CLERK_SECRET_KEY")
+    CLERK_JWT_VERIFICATION_KEY: Optional[str] = Field(None, env="CLERK_JWT_VERIFICATION_KEY")
+    
     # OpenAI
     OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
     OPENAI_MODEL: str = "gpt-4"

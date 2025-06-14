@@ -1,22 +1,23 @@
 """
-Gmail Integration Service for AIR MVP
+Gmail Integration Service
 
-This service handles Gmail OAuth flow, email syncing, and integration management.
-It integrates with the existing OAuth framework and provides high-level Gmail operations.
+This service handles Gmail OAuth integration, email synchronization,
+and contact extraction from Gmail messages.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from sqlalchemy.orm import Session
 
-from ..lib.gmail_client import GmailClient, GmailSyncResult
-from ..lib.google_cloud_config import google_cloud_manager
-from ..models.orm.integration import Integration
-from ..models.orm.user import User
-from .integration_service import IntegrationService
-from .integration_status_service import IntegrationStatusService
-from ..lib.database import get_db
+from lib.gmail_client import GmailClient, GmailSyncResult
+from lib.google_cloud_config import google_cloud_manager
+from models.orm.integration import Integration
+from models.orm.user import User
+from services.integration_service import IntegrationService
+from services.integration_status_service import IntegrationStatusService
+from lib.database import get_db
 
 logger = logging.getLogger(__name__)
 

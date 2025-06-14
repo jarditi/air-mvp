@@ -1,4 +1,9 @@
-"""API endpoints for integration status tracking and monitoring."""
+"""
+Integration Status API Routes
+
+This module provides REST API endpoints for checking and managing
+integration statuses across different services (Gmail, Calendar, etc.)
+"""
 
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -7,14 +12,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+import logging
 
 from lib.database import get_db
-from lib.auth import get_current_user
+from services.integration_status_service import IntegrationStatusService, AlertType, HealthCheckType
 from models.orm.user import User
-from services.integration_status_service import (
-    IntegrationStatusService, AlertType, HealthCheckType
-)
+from services.auth import get_current_user
 from models.orm.integration_status import IntegrationEventType, IntegrationSeverity
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integration-status", tags=["Integration Status"])
 

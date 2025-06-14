@@ -7,15 +7,16 @@ including OAuth flow, sync operations, and status monitoring.
 
 import logging
 from typing import Dict, List, Optional, Any
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
-from ...lib.database import get_db
-from ...services.gmail_integration_service import GmailIntegrationService
-from ...lib.middleware import get_current_user
-from ...models.schemas.integration import IntegrationResponse, IntegrationCreate
+from lib.database import get_db
+from services.gmail_integration_service import GmailIntegrationService
+from services.auth import get_current_user
+from models.schemas.integration import IntegrationResponseSchema, IntegrationCreateSchema
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ async def handle_oauth_callback(
     request: GmailOAuthCallback,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
-) -> IntegrationResponse:
+) -> IntegrationResponseSchema:
     """
     Handle Gmail OAuth callback
     
@@ -154,7 +155,7 @@ async def handle_oauth_callback(
             state=request.state
         )
         
-        return IntegrationResponse(
+        return IntegrationResponseSchema(
             id=integration.id,
             user_id=integration.user_id,
             provider=integration.provider,
@@ -423,7 +424,7 @@ async def check_integration_health(
         service = GmailIntegrationService(db)
         
         # Get integration and perform health check
-        from ...services.integration_service import IntegrationService
+        from services.integration_service import IntegrationService
         integration_service = IntegrationService(db)
         integration = await integration_service.get_integration(integration_id)
         

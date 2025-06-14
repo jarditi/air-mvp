@@ -8,7 +8,7 @@ from lib.database import init_db
 from lib.logger import setup_logging
 from lib.middleware import setup_middleware
 from api.routes import health, auth, contacts, integrations, ai_assistant, integration_status, contact_scoring
-from api.routes import gmail_integration, calendar_contacts
+from api.routes import gmail_integration, calendar_contacts, email_contacts
 
 
 @asynccontextmanager
@@ -41,6 +41,7 @@ app.include_router(integration_status.router, prefix=f"{settings.API_V1_STR}", t
 app.include_router(gmail_integration.router, prefix=f"{settings.API_V1_STR}/integrations", tags=["gmail-integration"])
 app.include_router(contact_scoring.router, prefix=f"{settings.API_V1_STR}", tags=["contact-scoring"])
 app.include_router(calendar_contacts.router, prefix=f"{settings.API_V1_STR}", tags=["calendar-contacts"])
+app.include_router(email_contacts.router, prefix=f"{settings.API_V1_STR}", tags=["email-contacts"])
 app.include_router(ai_assistant.router, prefix=f"{settings.API_V1_STR}/ai", tags=["ai"])
 
 

@@ -10,6 +10,9 @@ from .integration_status_service import IntegrationStatusService, AlertType, Hea
 from .gmail_integration_service import GmailIntegrationService
 from .calendar_contact_extraction import CalendarContactExtractionService
 from .email_contact_filtering_service import EmailContactFilteringService
+from .contact_deduplication import ContactDeduplicationService
+from .contact_merging import ContactMergingService
+from .contact_relationship_integration import ContactRelationshipIntegrationService
 
 __all__ = [
     "AuthService",
@@ -27,5 +30,8 @@ __all__ = [
     "HealthCheckType",
     "GmailIntegrationService",
     "CalendarContactExtractionService",
-    "EmailContactFilteringService"
+    "EmailContactFilteringService",
+    "ContactDeduplicationService",
+    "ContactMergingService",
+    "ContactRelationshipIntegrationService"
 ] 

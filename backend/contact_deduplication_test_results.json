@@ -1,0 +1,28 @@
+{
+  "test_results": {
+    "service_tests": {
+      "normalization": "passed"
+    },
+    "api_tests": {
+      "/contact-deduplication/stats": "error",
+      "/contact-deduplication/scan": "error",
+      "/contact-deduplication/suggestions/auto-merge": "error",
+      "/contact-deduplication/suggestions/manual-review": "error",
+      "/contact-deduplication/merge/preview": "error"
+    },
+    "performance_tests": {
+      "normalization": "passed"
+    },
+    "edge_case_tests": {
+      "handling": "passed"
+    }
+  },
+  "timestamp": "2025-06-15T08:33:31.796853",
+  "summary": {
+    "total_test_categories": 4,
+    "service_tests_passed": true,
+    "api_tests_count": 5,
+    "performance_verified": true,
+    "edge_cases_handled": true
+  }
+}

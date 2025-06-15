@@ -16,6 +16,7 @@ from models.orm.interaction import Interaction
 from models.orm.user import User
 from services.contact_scoring import ContactScoringService, ScoringWeights
 from services.auth import get_current_user
+from services.contact_relationship_integration import ContactRelationshipIntegrationService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -447,4 +448,62 @@ async def get_scoring_statistics(
         
     except Exception as e:
         logger.error(f"Error getting scoring statistics: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error") 
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/update-relationship-strength/{contact_id}")
+async def update_contact_relationship_strength(
+    contact_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update relationship strength for a specific contact using contact scoring
+    """
+    try:
+        integration_service = ContactRelationshipIntegrationService()
+        
+        result = await integration_service.update_contact_relationship_strength(
+            db=db,
+            user_id=str(current_user.id),
+            contact_id=contact_id
+        )
+        
+        return {
+            "success": True,
+            "message": "Relationship strength updated successfully",
+            "data": result
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to update relationship strength: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update relationship strength")
+
+
+@router.post("/update-all-relationship-strengths")
+async def update_all_relationship_strengths(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update relationship strength for all contacts using contact scoring
+    """
+    try:
+        integration_service = ContactRelationshipIntegrationService()
+        
+        result = await integration_service.update_all_contacts_relationship_strength(
+            db=db,
+            user_id=str(current_user.id)
+        )
+        
+        return {
+            "success": True,
+            "message": "All relationship strengths updated successfully",
+            "data": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update all relationship strengths: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update relationship strengths") 

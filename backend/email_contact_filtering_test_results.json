@@ -1,0 +1,29 @@
+{
+  "health": {
+    "status": "healthy",
+    "service_name": "EmailContactFilteringService",
+    "version": "1.0.0",
+    "features_available": [
+      "metadata_extraction",
+      "two_way_validation",
+      "spam_filtering",
+      "automation_detection",
+      "professional_scoring",
+      "relationship_analysis",
+      "contact_suggestions"
+    ],
+    "last_check": "2025-06-14T07:22:19.992101+00:00"
+  },
+  "extraction": {
+    "error": "HTTP 401"
+  },
+  "validation": {
+    "error": "HTTP 401"
+  },
+  "statistics": {
+    "error": "HTTP 401"
+  },
+  "suggestions": {
+    "error": "HTTP 401"
+  }
+}

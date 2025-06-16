@@ -60,10 +60,11 @@ class Integration(BaseModel):
     
     # Relationships
     user = relationship("User", back_populates="integrations")
-    sync_jobs = relationship("SyncJob", back_populates="integration", cascade="all, delete-orphan")
-    status_events = relationship("IntegrationStatusEvent", back_populates="integration", cascade="all, delete-orphan")
-    health_checks = relationship("IntegrationHealthCheck", back_populates="integration", cascade="all, delete-orphan")
-    alerts = relationship("IntegrationAlert", back_populates="integration", cascade="all, delete-orphan")
+    # TODO: Temporarily commented out to fix import issues
+    # sync_jobs = relationship("SyncJob", back_populates="integration", cascade="all, delete-orphan")
+    # status_events = relationship("IntegrationStatusEvent", back_populates="integration", cascade="all, delete-orphan")
+    # health_checks = relationship("IntegrationHealthCheck", back_populates="integration", cascade="all, delete-orphan")
+    # alerts = relationship("IntegrationAlert", back_populates="integration", cascade="all, delete-orphan")
     
     # Constraints
     __table_args__ = (
@@ -81,7 +82,7 @@ class Integration(BaseModel):
         if not self.access_token_encrypted:
             return None
         try:
-            if not self._encryption_service:
+            if not hasattr(self, '_encryption_service') or not self._encryption_service:
                 from lib.crypto import get_encryption_service
                 self._encryption_service = get_encryption_service()
             return self._encryption_service.decrypt_string(self.access_token_encrypted)
@@ -94,7 +95,7 @@ class Integration(BaseModel):
         if value is None:
             self.access_token_encrypted = None
         else:
-            if not self._encryption_service:
+            if not hasattr(self, '_encryption_service') or not self._encryption_service:
                 from lib.crypto import get_encryption_service
                 self._encryption_service = get_encryption_service()
             self.access_token_encrypted = self._encryption_service.encrypt_string(value)
@@ -105,7 +106,7 @@ class Integration(BaseModel):
         if not self.refresh_token_encrypted:
             return None
         try:
-            if not self._encryption_service:
+            if not hasattr(self, '_encryption_service') or not self._encryption_service:
                 from lib.crypto import get_encryption_service
                 self._encryption_service = get_encryption_service()
             return self._encryption_service.decrypt_string(self.refresh_token_encrypted)
@@ -118,7 +119,7 @@ class Integration(BaseModel):
         if value is None:
             self.refresh_token_encrypted = None
         else:
-            if not self._encryption_service:
+            if not hasattr(self, '_encryption_service') or not self._encryption_service:
                 from lib.crypto import get_encryption_service
                 self._encryption_service = get_encryption_service()
             self.refresh_token_encrypted = self._encryption_service.encrypt_string(value)
@@ -253,6 +254,35 @@ class Integration(BaseModel):
     def is_feature_enabled(self, feature: str) -> bool:
         """Check if a specific feature is enabled."""
         return feature in (self.features_enabled or [])
+    
+    @property
+    def scopes(self) -> List[str]:
+        """Get scopes as a list (for backward compatibility)."""
+        return self.scope or []
+    
+    @scopes.setter
+    def scopes(self, value: List[str]) -> None:
+        """Set scopes from a list (for backward compatibility)."""
+        self.scope = value
+    
+    @property
+    def provider(self) -> str:
+        """Get provider (maps to platform for backward compatibility)."""
+        return self.platform
+    
+    @provider.setter
+    def provider(self, value: str) -> None:
+        """Set provider (maps to platform for backward compatibility)."""
+        self.platform = value
+    
+    @property
+    def provider_user_id(self) -> Optional[str]:
+        """Get provider user ID from metadata."""
+        return self.platform_metadata.get('user_id') or self.platform_metadata.get('email_address')
+    
+    def get_metadata(self) -> Dict[str, Any]:
+        """Get metadata (alias for platform_metadata)."""
+        return self.platform_metadata or {}
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary, excluding sensitive data."""

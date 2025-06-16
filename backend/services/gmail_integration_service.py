@@ -18,6 +18,9 @@ from models.orm.user import User
 from services.integration_service import IntegrationService
 from services.integration_status_service import IntegrationStatusService
 from lib.database import get_db
+from services.oauth_service import OAuthService
+from lib.oauth_client import OAuthProvider
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -52,16 +55,27 @@ class GmailIntegrationService:
             OAuth flow information including authorization URL
         """
         try:
-            # Generate state parameter for security
-            state = f"gmail_oauth_{user_id}_{datetime.now().timestamp()}"
+            # Use the proper OAuth service
+            oauth_service = OAuthService(self.db)
             
-            # Get authorization URL
-            auth_url = await self.gmail_client.get_authorization_url(
-                user_id=user_id,
-                state=state
+            # Convert user_id to UUID if it's a string
+            if isinstance(user_id, str):
+                user_uuid = UUID(user_id)
+            else:
+                user_uuid = user_id
+            
+            # Use default redirect URI if not provided
+            if not redirect_uri:
+                redirect_uri = 'http://localhost:8000/auth/google/callback'
+            
+            # Initiate OAuth flow through the proper service
+            auth_url, state = await oauth_service.initiate_oauth_flow(
+                user_id=user_uuid,
+                provider=OAuthProvider.GOOGLE,
+                redirect_uri=redirect_uri,
+                scopes=self.gmail_client.SCOPES
             )
             
-            # Store state in session or cache (simplified for now)
             oauth_flow_data = {
                 'authorization_url': auth_url,
                 'state': state,
@@ -92,15 +106,14 @@ class GmailIntegrationService:
             Created Gmail integration
         """
         try:
-            # Verify state parameter (simplified for now)
-            if state and not state.startswith(f"gmail_oauth_{user_id}"):
-                raise ValueError("Invalid state parameter")
+            # Use the proper OAuth service to complete the flow
+            oauth_service = OAuthService(self.db)
             
-            # Handle OAuth callback
-            integration = await self.gmail_client.handle_oauth_callback(
-                user_id=user_id,
+            # Complete OAuth flow - this validates the state and creates the integration
+            integration = await oauth_service.complete_oauth_flow(
                 code=code,
-                state=state
+                state=state,
+                redirect_uri='http://localhost:8000/auth/google/callback'
             )
             
             # Perform initial sync
@@ -144,12 +157,12 @@ class GmailIntegrationService:
                 }
             )
             
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration.id,
                 event_type='initial_sync_completed',
                 severity='info',
                 message=f'Initial Gmail sync completed: {sync_result.messages_processed} messages',
-                context={
+                details={
                     'messages_fetched': sync_result.messages_fetched,
                     'messages_processed': sync_result.messages_processed,
                     'errors_count': len(sync_result.errors)
@@ -160,12 +173,12 @@ class GmailIntegrationService:
             
         except Exception as e:
             logger.error(f"Failed to perform initial Gmail sync: {e}")
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration.id,
                 event_type='initial_sync_failed',
                 severity='error',
                 message=f'Initial Gmail sync failed: {str(e)}',
-                context={'error': str(e)}
+                details={'error': str(e)}
             )
             raise
     
@@ -188,7 +201,7 @@ class GmailIntegrationService:
             
             if incremental:
                 # Get last sync timestamp from metadata
-                last_sync = integration.metadata.get('last_sync_at')
+                last_sync = integration.platform_metadata.get('last_sync_at')
                 if last_sync:
                     # Convert to Gmail query format
                     last_sync_dt = datetime.fromisoformat(last_sync.replace('Z', '+00:00'))
@@ -212,16 +225,16 @@ class GmailIntegrationService:
                 metadata_updates={
                     'last_sync_at': datetime.now(timezone.utc).isoformat(),
                     'last_sync_messages': sync_result.messages_processed,
-                    'total_syncs': integration.metadata.get('total_syncs', 0) + 1
+                    'total_syncs': integration.platform_metadata.get('total_syncs', 0) + 1
                 }
             )
             
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration.id,
                 event_type='sync_completed',
                 severity='info',
                 message=f'Gmail sync completed: {sync_result.messages_processed} messages',
-                context={
+                details={
                     'incremental': incremental,
                     'messages_fetched': sync_result.messages_fetched,
                     'messages_processed': sync_result.messages_processed,
@@ -234,12 +247,12 @@ class GmailIntegrationService:
             
         except Exception as e:
             logger.error(f"Failed to sync Gmail messages: {e}")
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration.id,
                 event_type='sync_failed',
                 severity='error',
                 message=f'Gmail sync failed: {str(e)}',
-                context={'error': str(e), 'incremental': incremental}
+                details={'error': str(e), 'incremental': incremental}
             )
             raise
     
@@ -277,7 +290,7 @@ class GmailIntegrationService:
             
             if extract_contacts and hasattr(sync_result, 'messages') and sync_result.messages:
                 # Extract contacts from the synced messages
-                user_email = integration.metadata.get('email_address', '')
+                user_email = integration.platform_metadata.get('email_address', '')
                 contacts_data = await self.gmail_client.extract_contacts_from_messages(
                     messages=sync_result.messages,
                     user_id=user_email
@@ -288,12 +301,12 @@ class GmailIntegrationService:
                 
                 # Here you would typically save contacts to database
                 # This would require a ContactService - placeholder for now
-                await self.status_service.log_event(
+                self.status_service.log_event(
                     integration_id=integration.id,
                     event_type='contacts_extracted',
                     severity='info',
                     message=f'Extracted {len(contacts_data)} contacts from {sync_result.messages_processed} messages',
-                    context={
+                    details={
                         'contacts_extracted': len(contacts_data),
                         'messages_processed': sync_result.messages_processed
                     }
@@ -303,12 +316,12 @@ class GmailIntegrationService:
             
         except Exception as e:
             logger.error(f"Failed to sync messages with contacts: {e}")
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration.id,
                 event_type='sync_with_contacts_failed',
                 severity='error',
                 message=f'Failed to sync messages with contacts: {str(e)}',
-                context={'error': str(e)}
+                details={'error': str(e)}
             )
             raise
 
@@ -328,7 +341,7 @@ class GmailIntegrationService:
         """
         try:
             # Get integration record
-            integration = await self.integration_service.get_integration(integration_id)
+            integration = self.integration_service.get_integration(integration_id)
             if not integration or integration.provider != 'gmail':
                 raise ValueError("Gmail integration not found")
             
@@ -394,7 +407,7 @@ class GmailIntegrationService:
         """
         try:
             # Get integration record
-            integration = await self.integration_service.get_integration(integration_id)
+            integration = self.integration_service.get_integration(integration_id)
             if not integration or integration.provider != 'gmail':
                 raise ValueError("Gmail integration not found")
             
@@ -416,12 +429,12 @@ class GmailIntegrationService:
             status_data = {
                 'integration_id': integration_id,
                 'provider': integration.provider,
-                'email_address': integration.metadata.get('email_address'),
+                'email_address': integration.platform_metadata.get('email_address'),
                 'status': integration.status,
                 'health': health_data,
-                'last_sync_at': integration.metadata.get('last_sync_at'),
-                'messages_synced': integration.metadata.get('messages_synced', 0),
-                'total_syncs': integration.metadata.get('total_syncs', 0),
+                'last_sync_at': integration.platform_metadata.get('last_sync_at'),
+                'messages_synced': integration.platform_metadata.get('messages_synced', 0),
+                'total_syncs': integration.platform_metadata.get('total_syncs', 0),
                 'recent_events': [
                     {
                         'event_type': event.event_type,
@@ -462,7 +475,7 @@ class GmailIntegrationService:
         """
         try:
             # Get integration record
-            integration = await self.integration_service.get_integration(integration_id)
+            integration = self.integration_service.get_integration(integration_id)
             if not integration or integration.provider != 'gmail':
                 raise ValueError("Gmail integration not found")
             
@@ -477,7 +490,7 @@ class GmailIntegrationService:
             )
             
             # Log disconnection
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration_id,
                 event_type='integration_disconnected',
                 severity='info',
@@ -489,12 +502,12 @@ class GmailIntegrationService:
             
         except Exception as e:
             logger.error(f"Failed to disconnect Gmail integration: {e}")
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration_id,
                 event_type='disconnect_failed',
                 severity='error',
                 message=f'Failed to disconnect Gmail integration: {str(e)}',
-                context={'error': str(e)}
+                details={'error': str(e)}
             )
             raise
     
@@ -509,9 +522,9 @@ class GmailIntegrationService:
             List of Gmail integrations
         """
         try:
-            integrations = await self.integration_service.get_user_integrations(
-                user_id=user_id,
-                provider='gmail'
+            integrations = self.integration_service.get_user_integrations(
+                user_id=UUID(user_id),
+                platform_filter=['google']
             )
             
             integration_data = []
@@ -525,11 +538,11 @@ class GmailIntegrationService:
                 
                 integration_data.append({
                     'integration_id': integration.id,
-                    'email_address': integration.metadata.get('email_address'),
+                    'email_address': integration.platform_metadata.get('email_address'),
                     'status': integration.status,
                     'health_status': status,
-                    'last_sync_at': integration.metadata.get('last_sync_at'),
-                    'messages_synced': integration.metadata.get('messages_synced', 0),
+                    'last_sync_at': integration.platform_metadata.get('last_sync_at'),
+                    'messages_synced': integration.platform_metadata.get('messages_synced', 0),
                     'created_at': integration.created_at.isoformat()
                 })
             
@@ -553,7 +566,7 @@ class GmailIntegrationService:
         """
         try:
             # Get integration record
-            integration = await self.integration_service.get_integration(integration_id)
+            integration = self.integration_service.get_integration(integration_id)
             if not integration or integration.provider != 'gmail':
                 raise ValueError("Gmail integration not found")
             

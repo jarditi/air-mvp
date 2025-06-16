@@ -12,6 +12,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Set, Tuple, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
+from uuid import UUID
 
 from lib.calendar_client import CalendarClient, CalendarEvent, CalendarSyncResult
 from lib.google_cloud_config import google_cloud_manager
@@ -69,16 +70,42 @@ class CalendarContactExtractionService:
             if not user:
                 raise ValueError(f"User {user_id} not found")
             
-            calendar_integration = self.integration_service.get_user_integration(
-                user_id=user_id,
-                provider="google_calendar"
+            # Get Google Calendar integration for the user
+            integrations = self.integration_service.get_user_integrations(
+                user_id=UUID(user_id),
+                platform_filter=["google"]
             )
             
-            if not calendar_integration or not calendar_integration.is_active:
+            # Find the calendar integration (should be the same as Gmail integration with calendar scopes)
+            calendar_integration = None
+            for integration in integrations:
+                if integration.platform == "google" and "calendar" in (integration.scope or []):
+                    calendar_integration = integration
+                    break
+            
+            if not calendar_integration:
+                # Try to find any Google integration (Gmail with calendar permissions)
+                calendar_integration = integrations[0] if integrations else None
+            
+            if not calendar_integration or calendar_integration.status != "connected":
                 raise ValueError("Google Calendar integration not found or inactive")
             
-            # Initialize calendar client with user's credentials
-            credentials = self.integration_service.get_credentials(calendar_integration)
+            # Initialize calendar client with user's OAuth token
+            oauth_token = calendar_integration.get_oauth_token()
+            if not oauth_token:
+                raise ValueError("No valid OAuth token found for calendar integration")
+            
+            # Convert OAuthToken to Google Credentials format
+            from google.oauth2.credentials import Credentials
+            credentials = Credentials(
+                token=oauth_token.access_token,
+                refresh_token=oauth_token.refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=google_cloud_manager.get_oauth_config()["client_id"],
+                client_secret=google_cloud_manager.get_oauth_config()["client_secret"],
+                scopes=oauth_token.scope.split() if oauth_token.scope else []
+            )
+            
             calendar_client = CalendarClient(credentials)
             
             # Set sync time window

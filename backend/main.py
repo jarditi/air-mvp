@@ -8,6 +8,7 @@ from config import settings
 from lib.database import init_db
 from lib.logger import setup_logging
 from lib.middleware import setup_middleware
+from lib.llm_client import initialize_openai_client, OpenAIModel
 from api.routes import health, auth, contacts, integration_status, contact_scoring
 from api.routes import gmail_integration, calendar_contacts, email_contacts, contact_deduplication, interaction_timeline, jobs, ai_assistant, integration_success
 
@@ -18,6 +19,30 @@ async def lifespan(app: FastAPI):
     # Startup
     setup_logging()
     await init_db()
+    
+    # Initialize OpenAI client
+    try:
+        # Map string model name to enum
+        model_mapping = {
+            "gpt-4-turbo-preview": OpenAIModel.GPT_4_TURBO,
+            "gpt-4": OpenAIModel.GPT_4,
+            "gpt-3.5-turbo": OpenAIModel.GPT_3_5_TURBO,
+            "gpt-3.5-turbo-16k": OpenAIModel.GPT_3_5_TURBO_16K,
+        }
+        default_model = model_mapping.get(settings.OPENAI_DEFAULT_MODEL, OpenAIModel.GPT_3_5_TURBO)
+        
+        initialize_openai_client(
+            api_key=settings.OPENAI_API_KEY,
+            default_model=default_model,
+            max_retries=settings.OPENAI_MAX_RETRIES,
+            timeout=settings.OPENAI_TIMEOUT,
+            rate_limit_rpm=settings.OPENAI_RATE_LIMIT_RPM
+        )
+    except Exception as e:
+        # Log error but don't crash the app - AI features will be disabled
+        import logging
+        logging.error(f"Failed to initialize OpenAI client: {e}")
+    
     yield
     # Shutdown
     pass

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clerk Token Generator</title>
+    <script src="https://unpkg.com/@clerk/clerk-js@4/dist/clerk.browser.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .token-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Clerk Token Generator</h1>
+        <p>This tool helps you get a JWT token from Clerk for testing your API endpoints.</p>
+        
+        <div id="status">Loading Clerk...</div>
+        
+        <div id="auth-section" style="display: none;">
+            <h3>Step 1: Sign In</h3>
+            <button id="signInBtn" onclick="signIn()">Sign In with Clerk</button>
+            <button id="signUpBtn" onclick="signUp()">Sign Up with Clerk</button>
+        </div>
+        
+        <div id="token-section" style="display: none;">
+            <h3>Step 2: Get Your Token</h3>
+            <button onclick="getToken()">Generate JWT Token</button>
+            <button onclick="copyToken()">Copy Token to Clipboard</button>
+            <button onclick="signOut()">Sign Out</button>
+            
+            <h4>Your JWT Token:</h4>
+            <div id="token-display" class="token-display">
+                Click "Generate JWT Token" to get your token
+            </div>
+            
+            <h4>Test Your API:</h4>
+            <button onclick="testAPI()">Test OAuth Initiate Endpoint</button>
+            <div id="api-result" class="token-display" style="display: none;"></div>
+        </div>
+        
+        <div id="user-info" style="display: none;">
+            <h3>User Information:</h3>
+            <div id="user-details"></div>
+        </div>
+
+        <div id="debug-info" style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px; font-size: 12px;">
+            <h4>Debug Information:</h4>
+            <div id="debug-content">Initializing...</div>
+        </div>
+    </div>
+
+    <script>
+        let clerk;
+        let currentToken = null;
+
+        // Your Clerk publishable key
+        const CLERK_PUBLISHABLE_KEY = 'pk_test_d2VsY29tZS1zaGFkLTE4LmNsZXJrLmFjY291bnRzLmRldiQ';
+        
+        function updateDebug(message) {
+            const debugContent = document.getElementById('debug-content');
+            const timestamp = new Date().toLocaleTimeString();
+            debugContent.innerHTML += `<br>[${timestamp}] ${message}`;
+        }
+
+        async function initClerk() {
+            try {
+                updateDebug('Checking if Clerk is available...');
+                
+                // Check if Clerk is available
+                if (typeof window.Clerk === 'undefined') {
+                    throw new Error('Clerk SDK not loaded. Please check your internet connection.');
+                }
+                
+                updateDebug('Creating Clerk instance...');
+                clerk = new window.Clerk(CLERK_PUBLISHABLE_KEY);
+                
+                updateDebug('Loading Clerk...');
+                await clerk.load();
+                
+                updateDebug('Clerk loaded successfully');
+                
+                if (clerk.user) {
+                    updateDebug('User already signed in: ' + clerk.user.id);
+                    showTokenSection();
+                    showUserInfo();
+                    showStatus('Already signed in!', 'success');
+                } else {
+                    updateDebug('No user signed in');
+                    showAuthSection();
+                    showStatus('Ready to sign in', 'info');
+                }
+            } catch (error) {
+                updateDebug('Error: ' + error.message);
+                showStatus('Error initializing Clerk: ' + error.message, 'error');
+                
+                // Show alternative method
+                document.getElementById('status').innerHTML += `
+                    <br><br><strong>Alternative Method:</strong><br>
+                    1. Go to your <a href="https://dashboard.clerk.com" target="_blank">Clerk Dashboard</a><br>
+                    2. Navigate to your application<br>
+                    3. Go to "Users" section<br>
+                    4. Create a test user manually<br>
+                    5. Use the Clerk API to generate tokens programmatically
+                `;
+            }
+        }
+
+        async function signIn() {
+            try {
+                updateDebug('Opening sign in modal...');
+                await clerk.openSignIn();
+            } catch (error) {
+                updateDebug('Sign in error: ' + error.message);
+                showStatus('Error signing in: ' + error.message, 'error');
+            }
+        }
+
+        async function signUp() {
+            try {
+                updateDebug('Opening sign up modal...');
+                await clerk.openSignUp();
+            } catch (error) {
+                updateDebug('Sign up error: ' + error.message);
+                showStatus('Error signing up: ' + error.message, 'error');
+            }
+        }
+
+        async function signOut() {
+            try {
+                updateDebug('Signing out...');
+                await clerk.signOut();
+                hideTokenSection();
+                hideUserInfo();
+                showAuthSection();
+                currentToken = null;
+                showStatus('Signed out successfully', 'success');
+            } catch (error) {
+                updateDebug('Sign out error: ' + error.message);
+                showStatus('Error signing out: ' + error.message, 'error');
+            }
+        }
+
+        async function getToken() {
+            try {
+                if (!clerk.user) {
+                    showStatus('Please sign in first', 'error');
+                    return;
+                }
+                
+                updateDebug('Getting session token...');
+                const token = await clerk.session.getToken();
+                currentToken = token;
+                
+                document.getElementById('token-display').textContent = token;
+                updateDebug('Token generated successfully (length: ' + token.length + ')');
+                showStatus('Token generated successfully!', 'success');
+            } catch (error) {
+                updateDebug('Token error: ' + error.message);
+                showStatus('Error getting token: ' + error.message, 'error');
+            }
+        }
+
+        async function copyToken() {
+            if (!currentToken) {
+                showStatus('Generate a token first', 'error');
+                return;
+            }
+            
+            try {
+                await navigator.clipboard.writeText(currentToken);
+                showStatus('Token copied to clipboard!', 'success');
+            } catch (error) {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = currentToken;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showStatus('Token copied to clipboard!', 'success');
+            }
+        }
+
+        async function testAPI() {
+            if (!currentToken) {
+                showStatus('Generate a token first', 'error');
+                return;
+            }
+            
+            try {
+                updateDebug('Testing API with token...');
+                const response = await fetch('http://localhost:8000/api/v1/integrations/oauth/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({
+                        integration_type: 'google_calendar'
+                    })
+                });
+                
+                const result = await response.text();
+                const apiResult = document.getElementById('api-result');
+                apiResult.style.display = 'block';
+                apiResult.innerHTML = `
+                    <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                    <strong>Response:</strong><br>
+                    <pre>${result}</pre>
+                `;
+                
+                updateDebug(`API response: ${response.status} - ${result.substring(0, 100)}...`);
+                
+                if (response.ok) {
+                    showStatus('API test successful!', 'success');
+                } else {
+                    showStatus(`API test failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                updateDebug('API test error: ' + error.message);
+                showStatus('Error testing API: ' + error.message, 'error');
+            }
+        }
+
+        function showAuthSection() {
+            document.getElementById('auth-section').style.display = 'block';
+        }
+
+        function showTokenSection() {
+            document.getElementById('token-section').style.display = 'block';
+            document.getElementById('auth-section').style.display = 'none';
+        }
+
+        function hideTokenSection() {
+            document.getElementById('token-section').style.display = 'none';
+        }
+
+        function showUserInfo() {
+            if (clerk.user) {
+                document.getElementById('user-info').style.display = 'block';
+                document.getElementById('user-details').innerHTML = `
+                    <strong>Email:</strong> ${clerk.user.primaryEmailAddress?.emailAddress || 'N/A'}<br>
+                    <strong>User ID:</strong> ${clerk.user.id}<br>
+                    <strong>First Name:</strong> ${clerk.user.firstName || 'N/A'}<br>
+                    <strong>Last Name:</strong> ${clerk.user.lastName || 'N/A'}
+                `;
+            }
+        }
+
+        function hideUserInfo() {
+            document.getElementById('user-info').style.display = 'none';
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+        }
+
+        // Wait for the page to load completely
+        window.addEventListener('load', () => {
+            updateDebug('Page loaded, checking Clerk availability...');
+            
+            // Give the Clerk script time to load
+            setTimeout(() => {
+                if (typeof window.Clerk !== 'undefined') {
+                    updateDebug('Clerk is available, initializing...');
+                    initClerk();
+                } else {
+                    updateDebug('Clerk not available after timeout');
+                    showStatus('Clerk SDK failed to load. Please refresh the page or check your internet connection.', 'error');
+                }
+            }, 1000);
+        });
+
+        // Listen for Clerk events (if Clerk loads successfully)
+        document.addEventListener('clerk:loaded', () => {
+            updateDebug('Clerk loaded event fired');
+            if (clerk && clerk.user) {
+                showTokenSection();
+                showUserInfo();
+                showStatus('Signed in successfully!', 'success');
+            }
+        });
+
+        document.addEventListener('clerk:signedIn', () => {
+            updateDebug('User signed in event fired');
+            showTokenSection();
+            showUserInfo();
+            showStatus('Signed in successfully!', 'success');
+        });
+
+        document.addEventListener('clerk:signedOut', () => {
+            updateDebug('User signed out event fired');
+            hideTokenSection();
+            hideUserInfo();
+            showAuthSection();
+            currentToken = null;
+            showStatus('Signed out', 'success');
+        });
+    </script>
+</body>
+</html> 

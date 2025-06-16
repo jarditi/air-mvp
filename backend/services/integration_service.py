@@ -146,6 +146,39 @@ class IntegrationService:
             Integration.id == integration_id
         ).first()
     
+    async def update_integration_metadata(
+        self,
+        integration_id: UUID,
+        metadata_updates: Dict[str, Any]
+    ) -> Integration:
+        """
+        Update integration metadata.
+        
+        Args:
+            integration_id: Integration ID to update
+            metadata_updates: Dictionary of metadata updates
+            
+        Returns:
+            Updated Integration instance
+        """
+        integration = self.db.query(Integration).filter(
+            Integration.id == integration_id
+        ).first()
+        
+        if not integration:
+            raise AIRException(f"Integration {integration_id} not found")
+        
+        # Update platform_metadata
+        current_metadata = integration.platform_metadata or {}
+        current_metadata.update(metadata_updates)
+        integration.platform_metadata = current_metadata
+        integration.updated_at = datetime.utcnow()
+        
+        self.db.commit()
+        
+        logger.info(f"Updated metadata for integration {integration_id}")
+        return integration
+    
     def get_user_integrations(
         self,
         user_id: UUID,

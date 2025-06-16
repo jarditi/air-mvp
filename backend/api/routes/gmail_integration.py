@@ -20,7 +20,7 @@ from models.schemas.integration import IntegrationResponseSchema, IntegrationCre
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/gmail", tags=["Gmail Integration"])
+router = APIRouter(tags=["Gmail Integration"])
 
 
 # Pydantic models for request/response
@@ -94,7 +94,7 @@ async def get_setup_instructions() -> Dict[str, Any]:
 @router.post("/oauth/initiate")
 async def initiate_oauth_flow(
     request: GmailOAuthInitiate,
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -112,7 +112,7 @@ async def initiate_oauth_flow(
         service = GmailIntegrationService(db)
         
         oauth_data = await service.initiate_oauth_flow(
-            user_id=current_user["user_id"],
+            user_id=str(current_user.id),
             redirect_uri=request.redirect_uri
         )
         
@@ -132,7 +132,7 @@ async def initiate_oauth_flow(
 @router.post("/oauth/callback")
 async def handle_oauth_callback(
     request: GmailOAuthCallback,
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> IntegrationResponseSchema:
     """
@@ -150,7 +150,7 @@ async def handle_oauth_callback(
         service = GmailIntegrationService(db)
         
         integration = await service.handle_oauth_callback(
-            user_id=current_user["user_id"],
+            user_id=str(current_user.id),
             code=request.code,
             state=request.state
         )
@@ -162,7 +162,7 @@ async def handle_oauth_callback(
             provider_user_id=integration.provider_user_id,
             status=integration.status,
             scopes=integration.scopes,
-            metadata=integration.metadata,
+            metadata=integration.platform_metadata,
             created_at=integration.created_at,
             updated_at=integration.updated_at
         )
@@ -186,7 +186,7 @@ async def handle_oauth_callback_get(
     code: str = Query(..., description="Authorization code from Google"),
     state: Optional[str] = Query(None, description="State parameter"),
     error: Optional[str] = Query(None, description="Error from OAuth provider"),
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -213,7 +213,7 @@ async def handle_oauth_callback_get(
         service = GmailIntegrationService(db)
         
         integration = await service.handle_oauth_callback(
-            user_id=current_user["user_id"],
+            user_id=str(current_user.id),
             code=code,
             state=state
         )
@@ -233,9 +233,9 @@ async def handle_oauth_callback_get(
         )
 
 
-@router.get("/integrations")
+@router.get("/")
 async def get_user_integrations(
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -252,7 +252,7 @@ async def get_user_integrations(
         service = GmailIntegrationService(db)
         
         integrations = await service.get_user_integrations(
-            user_id=current_user["user_id"]
+            user_id=str(current_user.id)
         )
         
         return {
@@ -269,10 +269,10 @@ async def get_user_integrations(
         )
 
 
-@router.get("/integrations/{integration_id}/status")
+@router.get("/{integration_id}/status")
 async def get_integration_status(
     integration_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> GmailIntegrationStatus:
     """
@@ -307,12 +307,12 @@ async def get_integration_status(
         )
 
 
-@router.post("/integrations/{integration_id}/sync")
+@router.post("/{integration_id}/sync")
 async def trigger_sync(
     integration_id: str,
     request: GmailSyncRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -362,10 +362,10 @@ async def trigger_sync(
         )
 
 
-@router.delete("/integrations/{integration_id}")
+@router.delete("/{integration_id}")
 async def disconnect_integration(
     integration_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -403,10 +403,10 @@ async def disconnect_integration(
         )
 
 
-@router.get("/integrations/{integration_id}/health")
+@router.get("/{integration_id}/health")
 async def check_integration_health(
     integration_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -434,11 +434,12 @@ async def check_integration_health(
                 detail="Gmail integration not found"
             )
         
-        health_data = await service.gmail_client.check_health(integration)
+        # Perform health check
+        health_result = await service.check_integration_health(integration_id)
         
         return {
             "success": True,
-            "data": health_data
+            "data": health_result
         }
         
     except HTTPException:
@@ -484,7 +485,7 @@ async def get_oauth_config() -> Dict[str, Any]:
         )
 
 
-@router.post("/integrations/{integration_id}/sync-with-contacts")
+@router.post("/{integration_id}/sync-with-contacts")
 async def sync_messages_with_contacts(
     integration_id: str,
     incremental: bool = True,
@@ -493,22 +494,27 @@ async def sync_messages_with_contacts(
     db: Session = Depends(get_db)
 ):
     """
-    Sync Gmail messages and extract contacts from email exchanges.
+    Sync Gmail messages and extract contacts
     
-    This endpoint performs email synchronization and automatically extracts
-    contact information from senders and recipients.
+    This endpoint combines Gmail message sync with contact extraction,
+    providing a comprehensive integration between email data and contact management.
+    
+    Args:
+        integration_id: Gmail integration identifier
+        incremental: Whether to perform incremental sync
+        max_results: Maximum number of messages to process
+        extract_contacts: Whether to extract contacts from messages
+        db: Database session
+        
+    Returns:
+        Combined sync and contact extraction results
     """
     try:
-        gmail_service = GmailIntegrationService(db)
-        
-        # Get integration
-        integration = await gmail_service.integration_service.get_integration(integration_id)
-        if not integration:
-            raise HTTPException(status_code=404, detail="Integration not found")
+        service = GmailIntegrationService(db)
         
         # Perform sync with contact extraction
-        result = await gmail_service.sync_messages_with_contacts(
-            integration=integration,
+        result = await service.sync_with_contact_extraction(
+            integration_id=integration_id,
             incremental=incremental,
             max_results=max_results,
             extract_contacts=extract_contacts
@@ -516,27 +522,24 @@ async def sync_messages_with_contacts(
         
         return {
             "success": True,
-            "integration_id": integration_id,
-            "sync_result": {
-                "messages_fetched": result['sync_result'].messages_fetched,
-                "messages_processed": result['sync_result'].messages_processed,
-                "errors": result['sync_result'].errors,
-                "sync_timestamp": result['sync_result'].sync_timestamp.isoformat()
-            },
-            "contacts": {
-                "extracted": result['contacts_extracted'],
-                "created": result['contacts_created'],
-                "updated": result['contacts_updated'],
-                "data": result['contacts_data'][:10]  # Limit response size
-            }
+            "data": result
         }
         
+    except ValueError as e:
+        logger.error(f"Gmail integration not found: {e}")
+        raise HTTPException(
+            status_code=404,
+            detail="Gmail integration not found"
+        )
     except Exception as e:
         logger.error(f"Failed to sync messages with contacts: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to sync with contacts: {str(e)}"
+        )
 
 
-@router.get("/integrations/{integration_id}/contacts/{contact_email}/history")
+@router.get("/{integration_id}/contacts/{contact_email}/history")
 async def get_contact_email_history(
     integration_id: str,
     contact_email: str,
@@ -544,16 +547,21 @@ async def get_contact_email_history(
     db: Session = Depends(get_db)
 ):
     """
-    Get email history for a specific contact.
+    Get email history for a specific contact
     
-    Returns all email exchanges between the user and the specified contact,
-    organized by conversation threads.
+    Args:
+        integration_id: Gmail integration identifier
+        contact_email: Contact email address
+        max_results: Maximum number of messages to return
+        db: Database session
+        
+    Returns:
+        Email history for the contact
     """
     try:
-        gmail_service = GmailIntegrationService(db)
+        service = GmailIntegrationService(db)
         
-        # Get contact email history
-        history = await gmail_service.get_contact_email_history(
+        history = await service.get_contact_email_history(
             integration_id=integration_id,
             contact_email=contact_email,
             max_results=max_results
@@ -561,17 +569,24 @@ async def get_contact_email_history(
         
         return {
             "success": True,
-            "integration_id": integration_id,
-            "contact_email": contact_email,
-            "history": history
+            "data": history
         }
         
+    except ValueError as e:
+        logger.error(f"Gmail integration or contact not found: {e}")
+        raise HTTPException(
+            status_code=404,
+            detail="Gmail integration or contact not found"
+        )
     except Exception as e:
         logger.error(f"Failed to get contact email history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get email history: {str(e)}"
+        )
 
 
-@router.get("/integrations/{integration_id}/contacts/suggestions")
+@router.get("/{integration_id}/contacts/suggestions")
 async def get_contact_suggestions(
     integration_id: str,
     limit: int = 20,
@@ -579,48 +594,40 @@ async def get_contact_suggestions(
     db: Session = Depends(get_db)
 ):
     """
-    Get contact suggestions based on email interactions.
+    Get contact suggestions based on email interactions
     
-    Returns a list of email addresses that appear frequently in the user's
-    email exchanges and could be added as contacts.
+    Args:
+        integration_id: Gmail integration identifier
+        limit: Maximum number of suggestions
+        min_interactions: Minimum interactions required
+        db: Database session
+        
+    Returns:
+        Contact suggestions based on email data
     """
     try:
-        gmail_service = GmailIntegrationService(db)
+        service = GmailIntegrationService(db)
         
-        # Get integration
-        integration = await gmail_service.integration_service.get_integration(integration_id)
-        if not integration:
-            raise HTTPException(status_code=404, detail="Integration not found")
-        
-        # Fetch recent messages to analyze for contact suggestions
-        sync_result = await gmail_service.sync_messages(
-            integration=integration,
-            incremental=True,
-            max_results=200  # Analyze more messages for better suggestions
+        suggestions = await service.get_contact_suggestions(
+            integration_id=integration_id,
+            limit=limit,
+            min_interactions=min_interactions
         )
-        
-        # Extract contacts from messages
-        user_email = integration.metadata.get('email_address', '')
-        contacts_data = await gmail_service.gmail_client.extract_contacts_from_messages(
-            messages=getattr(sync_result, 'messages', []),
-            user_id=user_email
-        )
-        
-        # Filter and sort suggestions
-        suggestions = [
-            contact for contact in contacts_data 
-            if contact['interaction_count'] >= min_interactions
-        ]
-        suggestions.sort(key=lambda x: x['interaction_count'], reverse=True)
         
         return {
             "success": True,
-            "integration_id": integration_id,
-            "suggestions": suggestions[:limit],
-            "total_analyzed": len(contacts_data),
-            "filtered_count": len(suggestions)
+            "data": suggestions
         }
         
+    except ValueError as e:
+        logger.error(f"Gmail integration not found: {e}")
+        raise HTTPException(
+            status_code=404,
+            detail="Gmail integration not found"
+        )
     except Exception as e:
         logger.error(f"Failed to get contact suggestions: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get contact suggestions: {str(e)}"
+        ) 

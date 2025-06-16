@@ -1,11 +1,13 @@
 """Authentication endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from lib.database import get_db
 from services.auth import get_current_user, get_current_active_user, get_auth_service
+from services.gmail_integration_service import GmailIntegrationService
 from models.orm.user import User
 from models.schemas.user import UserResponseSchema, UserDetailResponseSchema, UserUpdateSchema
 
@@ -160,4 +162,62 @@ async def test_auth(
         }
         
     except Exception as e:
-        return {"error": str(e)} 
+        return {"error": str(e)}
+
+
+@router.get("/google/callback")
+async def google_oauth_callback(
+    code: str = Query(..., description="Authorization code from Google"),
+    state: Optional[str] = Query(None, description="State parameter"),
+    error: Optional[str] = Query(None, description="Error from OAuth provider"),
+    db: Session = Depends(get_db)
+):
+    """
+    Handle Google OAuth callback and complete OAuth flow.
+    
+    This endpoint receives the OAuth callback from Google and processes it
+    through the OAuth service.
+    """
+    try:
+        if error:
+            # Redirect to frontend with error
+            return RedirectResponse(
+                url=f"/integrations/error?error={error}",
+                status_code=302
+            )
+        
+        if not state:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or missing state parameter"
+            )
+        
+        # Use OAuth service to complete the flow
+        from services.oauth_service import OAuthService
+        oauth_service = OAuthService(db)
+        
+        # Complete OAuth flow - this validates the state and creates the integration
+        integration = await oauth_service.complete_oauth_flow(
+            code=code,
+            state=state,
+            redirect_uri='http://localhost:8000/auth/google/callback'
+        )
+        
+        # Perform initial Gmail sync
+        gmail_service = GmailIntegrationService(db)
+        await gmail_service.perform_initial_sync(integration)
+        
+        # Redirect to frontend success page
+        return RedirectResponse(
+            url=f"/integrations/success?integration_id={integration.id}&provider=gmail",
+            status_code=302
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Redirect to frontend error page
+        return RedirectResponse(
+            url=f"/integrations/error?error=Failed to complete OAuth flow: {str(e)}",
+            status_code=302
+        )

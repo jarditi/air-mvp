@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
@@ -18,6 +16,14 @@ services:
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
       - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
       - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
     depends_on:
       - db
       - redis
@@ -64,26 +70,203 @@ services:
       - DEFAULT_VECTORIZER_MODULE=none
       - CLUSTER_HOSTNAME=node1
 
-  celery:
+  # Celery Workers - Multiple specialized workers for different task types
+  celery-high-priority:
     build: ./backend
-    command: celery -A workers.celery_app worker --loglevel=info
+    command: celery -A workers.celery_app worker --loglevel=info --hostname=high_priority@%h --queues=high_priority --concurrency=2 --max-tasks-per-child=100
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/airmvp
       - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
       - SECRET_KEY=${SECRET_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - CELERY_BROKER_URL=redis://redis:6379
       - CELERY_RESULT_BACKEND=redis://redis:6379
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
       # Google Cloud Configuration
       - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
       - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
       - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
     depends_on:
       - db
       - redis
     volumes:
       - ./backend:/app
+    restart: unless-stopped
+
+  celery-default:
+    build: ./backend
+    command: celery -A workers.celery_app worker --loglevel=info --hostname=default@%h --queues=default --concurrency=4 --max-tasks-per-child=200
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/airmvp
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      # Google Cloud Configuration
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  celery-ai-tasks:
+    build: ./backend
+    command: celery -A workers.celery_app worker --loglevel=info --hostname=ai_tasks@%h --queues=ai_tasks --concurrency=2 --max-tasks-per-child=50
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/airmvp
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      # Google Cloud Configuration
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  celery-data-pipeline:
+    build: ./backend
+    command: celery -A workers.celery_app worker --loglevel=info --hostname=data_pipeline@%h --queues=data_pipeline --concurrency=1 --max-tasks-per-child=20
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/airmvp
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      # Google Cloud Configuration
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  celery-low-priority:
+    build: ./backend
+    command: celery -A workers.celery_app worker --loglevel=info --hostname=low_priority@%h --queues=low_priority --concurrency=1 --max-tasks-per-child=50
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/airmvp
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      # Google Cloud Configuration
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  # Celery Beat Scheduler for periodic tasks
+  celery-beat:
+    build: ./backend
+    command: celery -A workers.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/airmvp
+      - REDIS_URL=redis://redis:6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      # Google Cloud Configuration
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      # Clerk Authentication
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_JWT_VERIFICATION_KEY=${CLERK_JWT_VERIFICATION_KEY}
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  # Celery Flower for monitoring (optional)
+  celery-flower:
+    build: ./backend
+    command: celery -A workers.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/airmvp
+      - REDIS_URL=redis://redis:6379
+      - CELERY_BROKER_URL=redis://redis:6379
+      - CELERY_RESULT_BACKEND=redis://redis:6379
+      - PYTHONPATH=/app
+    depends_on:
+      - redis
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
 
 volumes:
   postgres_data: 

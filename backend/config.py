@@ -46,7 +46,10 @@ class Settings(BaseSettings):
     
     # OpenAI
     OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
-    OPENAI_MODEL: str = "gpt-4"
+    OPENAI_DEFAULT_MODEL: str = Field("gpt-3.5-turbo", env="OPENAI_DEFAULT_MODEL")
+    OPENAI_MAX_RETRIES: int = Field(3, env="OPENAI_MAX_RETRIES")
+    OPENAI_TIMEOUT: int = Field(60, env="OPENAI_TIMEOUT")
+    OPENAI_RATE_LIMIT_RPM: int = Field(60, env="OPENAI_RATE_LIMIT_RPM")
     
     # LangSmith
     LANGCHAIN_TRACING_V2: bool = True

@@ -69,6 +69,55 @@ class AuthService:
             logger.error(f"Token verification error: {e}")
             raise AuthenticationError("Token verification failed")
     
+    def verify_clerk_token_via_api(self, token: str) -> Dict[str, Any]:
+        """Verify a Clerk token using the Clerk API."""
+        try:
+            if not self.clerk_client:
+                raise AuthenticationError("Clerk client not configured")
+            
+            # Use Clerk API to verify the session token
+            # First, decode the token without verification to get the session ID
+            import base64
+            import json
+            
+            # Split the JWT token
+            parts = token.split('.')
+            if len(parts) != 3:
+                raise AuthenticationError("Invalid token format")
+            
+            # Decode the payload (second part)
+            payload_encoded = parts[1]
+            # Add padding if needed
+            payload_encoded += '=' * (4 - len(payload_encoded) % 4)
+            payload_bytes = base64.urlsafe_b64decode(payload_encoded)
+            payload = json.loads(payload_bytes)
+            
+            # Extract session ID and user ID
+            session_id = payload.get('sid')
+            user_id = payload.get('sub')
+            
+            if not session_id or not user_id:
+                raise AuthenticationError("Invalid token payload")
+            
+            # Verify the session is active using Clerk API
+            try:
+                session = self.clerk_client.sessions.get(session_id=session_id)
+                if session.status != 'active':
+                    raise AuthenticationError("Session is not active")
+                
+                # Return the payload if session is valid
+                return payload
+                
+            except Exception as e:
+                logger.error(f"Clerk session verification failed: {e}")
+                raise AuthenticationError("Session verification failed")
+            
+        except AuthenticationError:
+            raise
+        except Exception as e:
+            logger.error(f"Clerk token verification error: {e}")
+            raise AuthenticationError("Token verification failed")
+
     def get_clerk_user(self, user_id: str) -> Optional[ClerkUser]:
         """Get user information from Clerk."""
         try:
@@ -116,12 +165,20 @@ class AuthService:
                 raise AuthenticationError("No email address found for user")
             
             # Create new user
+            full_name = None
+            if clerk_user.first_name or clerk_user.last_name:
+                name_parts = []
+                if clerk_user.first_name:
+                    name_parts.append(clerk_user.first_name)
+                if clerk_user.last_name:
+                    name_parts.append(clerk_user.last_name)
+                full_name = " ".join(name_parts)
+            
             user = User(
                 email=email,
                 auth_provider="clerk",
                 auth_provider_id=clerk_user_id,
-                first_name=clerk_user.first_name,
-                last_name=clerk_user.last_name,
+                full_name=full_name,
                 is_verified=True,  # Clerk handles verification
                 last_login_at=datetime.utcnow()
             )
@@ -163,8 +220,13 @@ class AuthService:
                 
             except AuthenticationError:
                 # If internal token verification fails, try Clerk token
-                if self.settings.CLERK_JWT_VERIFICATION_KEY:
-                    payload = self.verify_jwt_token(credentials.credentials)
+                if self.clerk_client:
+                    # Try JWT verification first if key is available
+                    if self.settings.CLERK_JWT_VERIFICATION_KEY:
+                        payload = self.verify_jwt_token(credentials.credentials)
+                    else:
+                        # Fall back to API verification
+                        payload = self.verify_clerk_token_via_api(credentials.credentials)
                     
                     # Extract user ID from Clerk token
                     clerk_user_id = payload.get("sub")

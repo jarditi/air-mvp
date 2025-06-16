@@ -53,8 +53,8 @@ class IntegrationStatusService:
     def log_event(
         self,
         integration_id: UUID,
-        event_type: IntegrationEventType,
-        severity: IntegrationSeverity,
+        event_type,  # Can be IntegrationEventType or str
+        severity,    # Can be IntegrationSeverity or str
         message: str,
         details: Optional[Dict[str, Any]] = None,
         previous_status: Optional[str] = None,
@@ -68,8 +68,8 @@ class IntegrationStatusService:
         
         Args:
             integration_id: Integration ID
-            event_type: Type of event
-            severity: Event severity
+            event_type: Type of event (enum or string)
+            severity: Event severity (enum or string)
             message: Human-readable message
             details: Additional event details
             previous_status: Status before event
@@ -81,10 +81,14 @@ class IntegrationStatusService:
         Returns:
             Created IntegrationStatusEvent
         """
+        # Handle both enum and string values
+        event_type_value = event_type.value if hasattr(event_type, "value") else event_type if hasattr(event_type, 'value') else event_type
+        severity_value = severity.value if hasattr(severity, "value") else severity if hasattr(severity, 'value') else severity
+        
         event = IntegrationStatusEvent(
             integration_id=integration_id,
-            event_type=event_type.value,
-            severity=severity.value,
+            event_type=event_type_value,
+            severity=severity_value,
             message=message,
             details=details or {},
             previous_status=previous_status,
@@ -97,7 +101,7 @@ class IntegrationStatusService:
         self.db.add(event)
         self.db.commit()
         
-        logger.info(f"Logged event {event_type.value} for integration {integration_id}: {message}")
+        logger.info(f"Logged event {event_type_value} for integration {integration_id}: {message}")
         
         # Check if this event should trigger an alert
         self._check_for_alert_triggers(integration_id, event)
@@ -427,7 +431,7 @@ class IntegrationStatusService:
         alert = IntegrationAlert(
             integration_id=integration_id,
             alert_type=alert_type.value,
-            severity=severity.value,
+            severity=severity.value if hasattr(severity, "value") else severity,
             title=title,
             message=message,
             details=details or {},

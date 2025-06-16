@@ -21,7 +21,7 @@ from services.contact_merging import ContactMergingService, MergeResult, MergePr
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/contact-deduplication", tags=["Contact Deduplication"])
+router = APIRouter(tags=["Contact Deduplication"])
 
 
 # Request/Response Models

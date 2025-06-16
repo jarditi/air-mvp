@@ -72,7 +72,7 @@ class IntegrationStatusEvent(BaseModel):
     resolution_message = Column(Text)
     
     # Relationships
-    integration = relationship("Integration", back_populates="status_events")
+    # integration = relationship("Integration", back_populates="status_events")
     
     def __init__(self, **kwargs):
         """Initialize status event with proper defaults."""
@@ -132,7 +132,7 @@ class IntegrationHealthCheck(BaseModel):
     check_duration_ms = Column(Integer)
     
     # Relationships
-    integration = relationship("Integration", back_populates="health_checks")
+    # integration = relationship("Integration", back_populates="health_checks")
     
     def __init__(self, **kwargs):
         """Initialize health check with proper defaults."""
@@ -194,7 +194,7 @@ class IntegrationAlert(BaseModel):
     suppression_reason = Column(Text)
     
     # Relationships
-    integration = relationship("Integration", back_populates="alerts")
+    # integration = relationship("Integration", back_populates="alerts")
     
     def __init__(self, **kwargs):
         """Initialize alert with proper defaults."""

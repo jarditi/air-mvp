@@ -25,7 +25,7 @@ from services.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/email-contacts", tags=["Email Contact Filtering"])
+router = APIRouter(tags=["Email Contact Filtering"])
 
 
 # Pydantic models for request/response

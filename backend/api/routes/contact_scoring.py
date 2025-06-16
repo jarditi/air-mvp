@@ -22,7 +22,7 @@ from services.contact_relationship_integration import ContactRelationshipIntegra
 logger = logging.getLogger(__name__)
 
 # Create router
-router = APIRouter(prefix="/contact-scoring", tags=["contact-scoring"])
+router = APIRouter(tags=["contact-scoring"])
 
 # Initialize scoring service
 scoring_service = ContactScoringService()

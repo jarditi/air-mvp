@@ -18,7 +18,7 @@ from models.orm.user import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/calendar-contacts", tags=["calendar-contacts"])
+router = APIRouter(tags=["calendar-contacts"])
 
 
 # Request/Response Models

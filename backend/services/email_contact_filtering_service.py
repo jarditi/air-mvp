@@ -154,12 +154,12 @@ class EmailContactFilteringService:
             if not integration or integration.provider != 'gmail':
                 raise ValueError("Gmail integration not found")
             
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration_id,
                 event_type='email_filtering_started',
                 severity='info',
                 message=f'Starting email contact filtering: {days_back} days, max {max_messages} messages',
-                context={
+                details={
                     'days_back': days_back,
                     'max_messages': max_messages,
                     'require_two_way': require_two_way
@@ -210,12 +210,12 @@ class EmailContactFilteringService:
                 statistics=statistics
             )
             
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration_id,
                 event_type='email_filtering_completed',
                 severity='info',
                 message=f'Email filtering completed: {result.contacts_extracted} contacts extracted',
-                context={
+                details={
                     'contacts_analyzed': result.contacts_analyzed,
                     'contacts_extracted': result.contacts_extracted,
                     'two_way_validated': result.two_way_validated,
@@ -227,12 +227,12 @@ class EmailContactFilteringService:
             
         except Exception as e:
             logger.error(f"Failed to extract and filter email contacts: {e}")
-            await self.status_service.log_event(
+            self.status_service.log_event(
                 integration_id=integration_id,
                 event_type='email_filtering_failed',
                 severity='error',
                 message=f'Email filtering failed: {str(e)}',
-                context={'error': str(e)}
+                details={'error': str(e)}
             )
             raise
     

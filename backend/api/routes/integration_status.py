@@ -22,7 +22,7 @@ from models.orm.integration_status import IntegrationEventType, IntegrationSever
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/integration-status", tags=["Integration Status"])
+router = APIRouter(tags=["Integration Status"])
 
 
 # Request/Response Models

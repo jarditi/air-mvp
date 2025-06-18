@@ -10,7 +10,7 @@ from services.ai_assistant import AIAssistantService, AIAssistantError
 from services.auth import get_current_user
 from models.orm.user import User
 
-router = APIRouter(tags=["AI Assistant"])
+router = APIRouter()
 
 
 # Request/Response Models

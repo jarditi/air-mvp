@@ -8,9 +8,10 @@ from config import settings
 from lib.database import init_db
 from lib.logger import setup_logging
 from lib.middleware import setup_middleware
-from lib.llm_client import initialize_openai_client, OpenAIModel
-from api.routes import health, auth, contacts, integration_status, contact_scoring
-from api.routes import gmail_integration, calendar_contacts, email_contacts, contact_deduplication, interaction_timeline, jobs, ai_assistant, integration_success
+from lib.llm_client import initialize_openai_client, OpenAIModel, set_token_usage_service
+from services.token_usage_service import TokenUsageService
+from api.routes import health, auth, contacts, integration_status, contact_scoring, token_usage
+from api.routes import gmail_integration, calendar_contacts, email_contacts, contact_deduplication, interaction_timeline, jobs, ai_assistant, integration_success, conversation_threads
 
 
 @asynccontextmanager
@@ -38,6 +39,13 @@ async def lifespan(app: FastAPI):
             timeout=settings.OPENAI_TIMEOUT,
             rate_limit_rpm=settings.OPENAI_RATE_LIMIT_RPM
         )
+        
+        # Initialize token usage service and connect to OpenAI client
+        from lib.database import get_db
+        db = next(get_db())
+        token_service = TokenUsageService(db)
+        set_token_usage_service(token_service)
+        
     except Exception as e:
         # Log error but don't crash the app - AI features will be disabled
         import logging
@@ -64,6 +72,7 @@ app.include_router(health.router, prefix="/health", tags=["health"])
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(contacts.router, prefix=f"{settings.API_V1_STR}/contacts", tags=["contacts"])
 app.include_router(ai_assistant.router, prefix=f"{settings.API_V1_STR}/ai", tags=["ai"])
+app.include_router(token_usage.router, prefix=f"{settings.API_V1_STR}/token-usage", tags=["token-usage"])
 
 # Integration routes
 app.include_router(integration_status.router, prefix=f"{settings.API_V1_STR}")
@@ -76,6 +85,9 @@ app.include_router(calendar_contacts.router, prefix="/api/v1")
 app.include_router(email_contacts.router, prefix="/api/v1")
 app.include_router(contact_deduplication.router, prefix="/api/v1")
 app.include_router(interaction_timeline.router, prefix="/api/v1")
+
+# Conversation threading routes
+app.include_router(conversation_threads.router, prefix="/api/v1")
 
 # Background job routes
 app.include_router(jobs.router, prefix="/api/v1")

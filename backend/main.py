@@ -11,7 +11,7 @@ from lib.middleware import setup_middleware
 from lib.llm_client import initialize_openai_client, OpenAIModel, set_token_usage_service
 from services.token_usage_service import TokenUsageService
 from api.routes import health, auth, contacts, integration_status, contact_scoring, token_usage
-from api.routes import gmail_integration, calendar_contacts, email_contacts, contact_deduplication, interaction_timeline, jobs, ai_assistant, integration_success, conversation_threads
+from api.routes import gmail_integration, calendar_contacts, email_contacts, contact_deduplication, interaction_timeline, jobs, ai_assistant, integration_success, conversation_threads, contact_summaries
 
 
 @asynccontextmanager
@@ -88,6 +88,9 @@ app.include_router(interaction_timeline.router, prefix="/api/v1")
 
 # Conversation threading routes
 app.include_router(conversation_threads.router, prefix="/api/v1")
+
+# Contact summaries routes
+app.include_router(contact_summaries.router, prefix="/api/v1", tags=["contact-summaries"])
 
 # Background job routes
 app.include_router(jobs.router, prefix="/api/v1")

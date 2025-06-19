@@ -25,6 +25,7 @@ weaviate-client==3.25.3
 
 # Background Jobs
 celery==5.3.4
+flower==2.0.1
 redis==5.0.1
 
 # Authentication

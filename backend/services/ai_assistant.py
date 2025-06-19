@@ -424,9 +424,7 @@ Please provide a well-crafted message that is appropriate for the context and to
             usage_type=LLMUsageType.MESSAGE_DRAFTING,
             system_message=system_message,
             temperature=0.8,  # Slightly higher temperature for creativity
-            force_refresh=force_refresh,
-            tone=tone,
-            message_type=message_type
+            force_refresh=force_refresh
         )
     
     def get_cache_stats(self) -> Dict[str, Any]:

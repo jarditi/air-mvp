@@ -467,7 +467,7 @@ def oauth_cleanup_task(self):
         
         try:
             service = OAuthService(db)
-            result = asyncio.run(service.cleanup_expired_states())
+            result = asyncio.run(service.cleanup_expired_oauth_states())
             
             logger.info(f"OAuth cleanup completed: {result}")
             return result
